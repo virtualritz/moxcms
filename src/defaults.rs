@@ -338,7 +338,7 @@ impl ColorProfile {
         profile.green_trc = Some(curve);
         profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
-            color_primaries: CicpColorPrimaries::Smpte431,
+            color_primaries: CicpColorPrimaries::Smpte432,
             transfer_characteristics: TransferCharacteristics::Srgb,
             matrix_coefficients: MatrixCoefficients::Bt709,
             full_range: false,
@@ -368,7 +368,7 @@ impl ColorProfile {
         profile.green_trc = Some(curve);
         profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
-            color_primaries: CicpColorPrimaries::Smpte431,
+            color_primaries: CicpColorPrimaries::Smpte432,
             transfer_characteristics: TransferCharacteristics::Smpte2084,
             matrix_coefficients: MatrixCoefficients::Bt709,
             full_range: false,
@@ -397,7 +397,7 @@ impl ColorProfile {
         profile.green_trc = Some(curve);
         profile.media_white_point = Some(white_point_dci_p3().to_xyzd());
         profile.cicp = Some(CicpProfile {
-            color_primaries: CicpColorPrimaries::Smpte432,
+            color_primaries: CicpColorPrimaries::Smpte431,
             transfer_characteristics: TransferCharacteristics::Srgb,
             matrix_coefficients: MatrixCoefficients::Bt709,
             full_range: false,
@@ -680,5 +680,47 @@ impl ColorProfile {
         )]));
 
         profile
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Chromaticity;
+
+    // ITU-T H.273 ColourPrimaries: 11 is SMPTE RP 431-2 (DCI white point),
+    // 12 is SMPTE EG 432-1 (D65 white point, a.k.a. Display P3).
+    #[test]
+    fn p3_profiles_use_correct_cicp_primaries() {
+        let display_p3 = ColorProfile::new_display_p3().cicp.unwrap();
+        assert_eq!(display_p3.color_primaries, CicpColorPrimaries::Smpte432);
+        assert_eq!(display_p3.color_primaries as u8, 12);
+
+        let display_p3_pq = ColorProfile::new_display_p3_pq().cicp.unwrap();
+        assert_eq!(display_p3_pq.color_primaries, CicpColorPrimaries::Smpte432);
+        assert_eq!(display_p3_pq.color_primaries as u8, 12);
+
+        let dci_p3 = ColorProfile::new_dci_p3().cicp.unwrap();
+        assert_eq!(dci_p3.color_primaries, CicpColorPrimaries::Smpte431);
+        assert_eq!(dci_p3.color_primaries as u8, 11);
+    }
+
+    #[test]
+    fn p3_cicp_primaries_carry_expected_white_point() {
+        let d65 = ColorProfile::new_display_p3()
+            .cicp
+            .unwrap()
+            .color_primaries
+            .white_point()
+            .unwrap();
+        assert_eq!((d65.x, d65.y), (Chromaticity::D65.x, Chromaticity::D65.y));
+
+        let dci = ColorProfile::new_dci_p3()
+            .cicp
+            .unwrap()
+            .color_primaries
+            .white_point()
+            .unwrap();
+        assert_eq!((dci.x, dci.y), (0.314, 0.351));
     }
 }
