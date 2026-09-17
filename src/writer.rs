@@ -30,7 +30,7 @@ use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
 use crate::{
-    CicpProfile, CmsError, ColorDateTime, ColorProfile, DataColorSpace, LocalizableString,
+    CicpProfile, CmsError, ColorProfile, DataColorSpace, LocalizableString,
     LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d, ProfileClass,
     ProfileSignature, ProfileText, ProfileVersion, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
@@ -879,7 +879,7 @@ impl ColorProfile {
                 self.version_internal
             },
             data_color_space: self.color_space,
-            creation_date_time: ColorDateTime::now(),
+            creation_date_time: self.creation_date_time,
             signature: ProfileSignature::Acsp,
             platform: 0u32,
             flags: 0u32,
@@ -914,7 +914,7 @@ impl FloatToFixedU8Fixed8 for f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CicpColorPrimaries, MatrixCoefficients, TransferCharacteristics};
+    use crate::{CicpColorPrimaries, ColorDateTime, MatrixCoefficients, TransferCharacteristics};
 
     #[test]
     fn to_u8_fixed8() {
@@ -947,5 +947,47 @@ mod tests {
         let decoded_rountrip = ColorProfile::new_from_slice(&encoded).unwrap();
         // Gray profiles with cicp are not conformant, so we should remove it during encoding
         assert!(decoded_rountrip.cicp.is_none());
+    }
+
+    #[test]
+    fn encode_uses_profile_creation_date_time() {
+        let date = ColorDateTime {
+            year: 2001,
+            month: 2,
+            day_of_the_month: 3,
+            hours: 4,
+            minutes: 5,
+            seconds: 6,
+        };
+        let mut profile = ColorProfile::new_display_p3();
+        profile.creation_date_time = date;
+
+        let first = profile.encode().unwrap();
+        let second = profile.encode().unwrap();
+        assert_eq!(first, second);
+
+        // Header bytes 24..36 hold the creation dateTimeNumber (ICC.1 7.2.8).
+        let mut expected = Vec::new();
+        date.encode(&mut expected);
+        assert_eq!(&first[24..36], expected.as_slice());
+
+        let decoded = ColorProfile::new_from_slice(&first).unwrap();
+        assert_eq!(decoded.creation_date_time, date);
+    }
+
+    #[test]
+    fn reencoding_parsed_profile_preserves_creation_date_time() {
+        let mut profile = ColorProfile::new_srgb();
+        profile.creation_date_time = ColorDateTime {
+            year: 1999,
+            month: 12,
+            day_of_the_month: 31,
+            hours: 23,
+            minutes: 59,
+            seconds: 58,
+        };
+        let encoded = profile.encode().unwrap();
+        let decoded = ColorProfile::new_from_slice(&encoded).unwrap();
+        assert_eq!(decoded.encode().unwrap(), encoded);
     }
 }
